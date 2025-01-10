@@ -19,12 +19,18 @@ from react_agent.configuration import Configuration
 async def search(
     query: str, *, config: Annotated[RunnableConfig, InjectedToolArg]
 ) -> Optional[list[dict[str, Any]]]:
-    """Search for general web results.
-
-    This function performs a search using the Tavily search engine, which is designed
-    to provide comprehensive, accurate, and trusted results. It's particularly useful
-    for answering questions about current events.
     """
+    Perform an asynchronous web search using the Tavily search tool.
+
+    Args:
+        query (str): The search query string.
+        config (Annotated[RunnableConfig, InjectedToolArg]): Configuration settings for the search,
+            including the maximum number of search results.
+
+    Returns:
+        Optional[list[dict[str, Any]]]: A list of dictionaries containing search results, or None if no results are found.
+    """
+
     configuration = Configuration.from_runnable_config(config)
     wrapped = TavilySearchResults(max_results=configuration.max_search_results)
     result = await wrapped.ainvoke({"query": query})

@@ -41,8 +41,16 @@ checking_parser = PydanticOutputParser(pydantic_object=CheckingOutput)
 acting_parser = PydanticOutputParser(pydantic_object=ActingOutput)
 
 
-def extract_json(content):
-    """Function to extract the JSON content from responses."""
+def extract_json(content: str) -> str:
+    """
+    Extract JSON content from a given string.
+
+    Args:
+        content (str): The input string
+
+    Returns:
+        str: The JSON content extracted from the string
+    """
 
     try:
         content = content.replace("```json", "")
@@ -63,17 +71,21 @@ async def call_model(
     allow_tools: bool = False,
     input_variables: dict = None,
 ) -> AIMessage:
-    """Call the LLM powering our "agent".
-
-    This function prepares the prompt, initializes the model, and processes the response.
+    """
+    Call a model with a given prompt and input variables.
 
     Args:
-        state (State): The current state of the conversation.
-        config (RunnableConfig): Configuration for the model run.
+        state (State): The current state of the agent
+        config (RunnableConfig): The configuration for the agent
+        custom_prompt (str): The custom prompt to use for the model
+        action (DemingAction): The current action of the agent
+        allow_tools (bool, optional): If True, allow the model to use tools. Defaults to False.
+        input_variables (dict, optional): The input variables to use for the model. Defaults to None.
 
     Returns:
-        dict: A dictionary containing the model's response message.
+        AIMessage: The response from the model
     """
+
     configuration = Configuration.from_runnable_config(config)
 
     # Create a prompt template. Customize this to change the agent's behavior.
@@ -121,7 +133,21 @@ async def call_model(
 
 
 async def plan_action(state: State, config: RunnableConfig) -> None:
-    """Plan the next action based on the current context."""
+    """
+    Plan the next steps required to solve the main task.
+
+    This function is responsible for setting up the task description and generating
+    a plan using the provided state and configuration. It constructs a planning prompt,
+    calls a model to generate the plan, and updates the state with the next steps and
+    any relevant messages.
+
+    Args:
+        state (State): The current state of the agent, containing task context and history.
+        config (RunnableConfig): The configuration settings for the agent's execution.
+
+    Returns:
+        None: The function updates the state with the planned next steps and does not return a value.
+    """
 
     # Set task description if not set
     if state.task_description is None:
@@ -165,7 +191,21 @@ async def do_action(
     state: State,
     config: RunnableConfig,
 ) -> None:
-    """Execute a specific task."""
+    """
+    Execute the next step in the plan.
+
+    This function is responsible for setting up the next step and generating
+    a prompt for the model to execute the step. It constructs an execution prompt,
+    calls a model to execute the step, and updates the state with the step's results
+    and any relevant messages.
+
+    Args:
+        state (State): The current state of the agent, containing task context and history.
+        config (RunnableConfig): The configuration settings for the agent's execution.
+
+    Returns:
+        None: The function updates the state with the results of the executed step and does not return a value.
+    """
 
     prompt = PromptTemplate(
         template=DO_ACTION_PROMPT,
@@ -212,7 +252,20 @@ async def do_action(
 
 
 async def check_action(state: State, config: RunnableConfig) -> None:
-    """Integrate feedback from previous tasks into the agent's strategy."""
+    """
+    Evaluate the results of the current step and generate feedback.
+
+    This function is responsible for setting up the evaluation prompt,
+    calling a model to generate the evaluation, and updating the state
+    with the evaluation and any relevant messages.
+
+    Args:
+        state (State): The current state of the agent, containing task context and history.
+        config (RunnableConfig): The configuration settings for the agent's execution.
+
+    Returns:
+        None: The function updates the state with the evaluation and does not return a value.
+    """
 
     prompt = PromptTemplate(
         template=CHECK_ACTION_PROMPT,
@@ -261,7 +314,22 @@ async def check_action(state: State, config: RunnableConfig) -> None:
 
 
 async def act_action(state: State, config: RunnableConfig) -> None:
-    """Make a decision based on the current circumstances."""
+    """
+    Determine the current status of the main task.
+
+    This function evaluates the current status of the main task by reviewing
+    the recent progress and outcomes. It constructs an action prompt, calls
+    a model to generate the action response, and updates the state with the
+    evaluation of the task's completion status and any relevant messages.
+
+    Args:
+        state (State): The current state of the agent, containing task context and history.
+        config (RunnableConfig): The configuration settings for the agent's execution.
+
+    Returns:
+        dict: A dictionary containing the evaluation of the current status, context,
+              results, and messages from the action response.
+    """
 
     prompt = PromptTemplate(
         template=ACT_ACTION_PROMPT,
@@ -307,7 +375,20 @@ async def generate_final_answer(
     state: State,
     config: RunnableConfig,
 ) -> None:
-    """Generate the final answer based on the content provided."""
+    """
+    Generate the final answer for the task in Markdown format.
+
+    This function constructs a final answer prompt using the task description
+    and the current results, then calls a model to generate the final answer.
+    The generated answer is returned as a formatted string.
+
+    Args:
+        state (State): The current state of the agent, containing task context and relevant results.
+        config (RunnableConfig): The configuration settings for the agent's execution.
+
+    Returns:
+        dict: A dictionary containing the final answer in Markdown format.
+    """
 
     prompt = PromptTemplate(
         template=FINAL_ANSWER_PROMPT,
@@ -335,7 +416,12 @@ async def generate_final_answer(
 
 
 def route_after_check_phase(state: State) -> Literal["act", "do"]:
-    """Determine whether to continue to the Act phase or retry the Do phase if the evaluation was not successful"""
+    """
+    Determine whether to proceed with acting or redoing the current step.
+
+    If the step was successful or the maximum number of retries has been exceeded, proceed to the act phase.
+    Otherwise, redo the current step.
+    """
 
     if state.success or state.n_retries > MAX_N_RETRIES:
         return "act"
@@ -346,7 +432,12 @@ def route_after_check_phase(state: State) -> Literal["act", "do"]:
 def route_after_act_phase(
     state: State,
 ) -> Literal["final_answer_generation", "clean_vars"]:
-    """Determine whether to continue with a next iteration or the task is completed"""
+    """
+    Determine the next step in the workflow based on the current status of the task.
+
+    If the task is completed, proceed to the final answer generation phase.
+    Otherwise, proceed to the clean variables phase to clean up variables used during the current step.
+    """
 
     if state.current_status == "completed":
         return "final_answer_generation"
@@ -357,7 +448,18 @@ def route_after_act_phase(
 def route_tools_usage(
     state: State,
 ) -> Literal["check", "tools"]:
-    """Identify whether to use tools for the do phase or not"""
+    """
+    Route the workflow to the check or tools phase based on the existence of tool calls in the last message.
+
+    If the last message contains tool calls, the workflow proceeds to the tools phase to execute the requested actions.
+    Otherwise, it proceeds to the check phase to evaluate the results of the current step.
+
+    Args:
+        state (State): The current state of the agent.
+
+    Returns:
+        Literal["check", "tools"]: The next phase in the workflow.
+    """
 
     last_message = state.messages[-1]
     if not isinstance(last_message, AIMessage):
@@ -372,10 +474,20 @@ def route_tools_usage(
     return "tools"
 
 
-def clean_step_vars(
-    state: State,
-) -> None:
-    """Step for cleaning the variables using during the current step for performing the next step"""
+def clean_step_vars(state: State) -> None:
+    """
+    Reset step-specific variables to their default values.
+
+    This function resets the variables that are specific to the current step,
+    such as the step results, obstacles, number of retries, success status, and
+    feedback. This is done to prepare for the next step in the workflow.
+
+    Args:
+        state (State): The current state of the agent.
+
+    Returns:
+        dict: A dictionary with the default values for the step-specific variables.
+    """
 
     return {
         "step_results": None,

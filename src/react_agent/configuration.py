@@ -75,7 +75,16 @@ class Configuration:
     def from_runnable_config(
         cls, config: Optional[RunnableConfig] = None
     ) -> Configuration:
-        """Create a Configuration instance from a RunnableConfig object."""
+        """
+        Create a Configuration instance from a RunnableConfig.
+
+        If the config is not provided, will use the default configuration.
+
+        Will only use the values from the config that match field names in this class.
+
+        :param config: The RunnableConfig to use for creating the Configuration instance.
+        :return: A Configuration instance.
+        """
 
         config = ensure_config(config)
         configurable = config.get("configurable") or {}
